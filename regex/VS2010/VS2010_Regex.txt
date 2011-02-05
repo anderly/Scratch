@@ -1,0 +1,5 @@
+Name								Find					Replace
+vbscript beginning if statement: 	^{[:Wh]+}if[:Wh]+		\1if (
+vbscript then statement: 			[:Wh]+then[:Wh]*\n		) {\n
+vbscript end if:	`				{[:Wh]+}end if			\1}			
+vbscript beginning for statement: 	^{[:Wh]+}for[:Wh]+		\1for (
