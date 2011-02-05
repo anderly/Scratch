@@ -1,0 +1,5 @@
+/property:Debug=False
+/property:Environment=Dev-QA2
+/property:SqlInstance=ssidb01-dev.app.chomes.com\QA2
+/fileLogger
+/fileloggerparameters:LogFile=DevQA.log;Verbosity=diagnostic;Encoding=UTF-8

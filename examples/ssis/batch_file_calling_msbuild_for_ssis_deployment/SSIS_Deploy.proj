@@ -1,0 +1,146 @@
+<Project DefaultTargets = "Initialize"
+    xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+	<!-- Required Import to use MSBuild Community Tasks -->
+	<Import Project="Extensions\MSBuild.Community.Tasks.Targets"/>
+
+	<!-- Set up environment variables -->
+	<PropertyGroup>
+		<Debug>True</Debug>
+		<Interactive>True</Interactive>
+		<PromptResponse>Y</PromptResponse>
+		<Environment>Dev</Environment>
+		<SqlInstance>ssidb01-dev.app.chomes.com\dev</SqlInstance>
+		<DTUtilDirectory>C:\Program Files\Microsoft SQL Server\100\DTS\Binn\</DTUtilDirectory>
+		<PackagePath>SSIS_Deployment</PackagePath>
+		<PackageFilter>*.dtsx</PackageFilter>
+		<PackageRootPath>Data Conversion</PackageRootPath>
+		<BWPPath>BuildWithPulte</BWPPath>
+		<eProPath>ePro</eProPath>
+		<eSchedulePath>eSchedule</eSchedulePath>
+		<eServicePath>eService</eServicePath>
+		<LawsonPath>Lawson</LawsonPath>
+		<PHBSPath>PHBS</PHBSPath>
+		<SiebelPath>Siebel</SiebelPath>
+	</PropertyGroup>
+	<Choose>
+		<When Condition="Exists('$(DTUtilDirectory)dtutil.exe')">
+			<PropertyGroup>
+				<DTUtilExists>True</DTUtilExists>
+			</PropertyGroup>
+		</When>
+		<Otherwise>
+			<PropertyGroup>
+				<DTUtilExists>False</DTUtilExists>
+			</PropertyGroup>
+		</Otherwise>
+	</Choose>
+	<Choose>
+		<When Condition="'$(DTUtilExists)' == 'True'">
+			<PropertyGroup>
+				<ValidationPassed>True</ValidationPassed>
+			</PropertyGroup>
+		</When>
+		<Otherwise>
+			<PropertyGroup>
+				<ValidationPassed>False</ValidationPassed>
+			</PropertyGroup>
+		</Otherwise>
+	</Choose>
+
+	<!-- Specify the inputs by type and file name -->
+	<ItemGroup>
+		<Package Include="$(PackagePath)\$(BWPPath)\$(PackageFilter)"
+				 Condition="Exists('$(PackagePath)\$(BWPPath)')">
+			<Path>$(BWPPath)</Path>
+		</Package>
+		<Package Include="$(PackagePath)\$(eProPath)\$(PackageFilter)"
+				 Condition="Exists('$(PackagePath)\$(eProPath)')">
+			<Path>$(eProPath)</Path>
+		</Package>
+		<Package Include="$(PackagePath)\$(eSchedulePath)\$(PackageFilter)"
+				 Condition="Exists('$(PackagePath)\$(eSchedulePath)')">
+			<Path>$(eSchedulePath)</Path>
+		</Package>
+		<Package Include="$(PackagePath)\$(eServicePath)\$(PackageFilter)"
+				 Condition="Exists('$(PackagePath)\$(eServicePath)')">
+			<Path>$(eServicePath)</Path>
+		</Package>
+		<Package Include="$(PackagePath)\$(LawsonPath)\$(PackageFilter)"
+				 Condition="Exists('$(PackagePath)\$(LawsonPath)')">
+			<Path>$(LawsonPath)</Path>
+		</Package>
+		<Package Include="$(PackagePath)\$(PHBSPath)\$(PackageFilter)"
+				 Condition="Exists('$(PackagePath)\$(PHBSPath)')">
+			<Path>$(PHBSPath)</Path>
+		</Package>
+		<Package Include="$(PackagePath)\$(SiebelPath)\$(PackageFilter)"
+				 Condition="Exists('$(PackagePath)\$(SiebelPath)')">
+			<Path>$(SiebelPath)</Path>
+		</Package>
+	</ItemGroup>
+
+	<Target Name="Initialize">
+		<Message Text="--------------------------------------------"/>
+		<Message Text="-- Beginning Deployment"/>
+		<Message Text="---- Environment: $(Environment)"/>
+		<Message Text="---- SqlInstance: $(SqlInstance)"/>
+		<Message Text="--------------------------------------------"/>
+		<Prompt Text="Are you sure you want to continue? (Y/N):"
+				Condition="'$(Interactive)' == 'True'" >
+			<Output TaskParameter="UserInput" PropertyName="PromptResponse" />
+		</Prompt>
+		<CallTarget Targets="Validation"
+					Condition="'$(PromptResponse)' == 'Y' Or '$(PromptResponse)' == 'y'" />
+		<CallTarget Targets="CancelDeployment"
+					Condition="'$(PromptResponse)' != 'Y' Or '$(PromptResponse)' != 'y'" />
+	</Target>
+	
+	<Target Name="Validation">
+		<Error HelpKeyword="DTUtil"
+			   Text="$(DTUtilDirectory)dtutil.exe does not exist. Please verify the path to dtutil.exe is correct."
+			   Condition="'$(DTUtilExists)' == 'False'" />
+		<Message Text="Validation passed. Continuing deployment."
+				 Condition="'$(ValidationPassed)' == 'True'" />
+        <CallTarget Targets="Prep" 
+					Condition="'$(ValidationPassed)' == 'True'"/>
+	</Target>
+
+	<Target Name="Prep">
+		<Message Text="|-- Preparing SSIS Packages for Deployment --|"/>
+
+		<Attrib Files="%(Package.FullPath)" Normal="true"/>
+
+		<Exec Command='%SystemRoot%\system32\cscript.exe Update_SSIS_Configuration.vbs "%(Package.FullPath)" "$(Environment)" "%(Package.Path)"'
+			  Condition="%(Package.Identity) != '' And !HasTrailingSlash(%(Package.Identity))"/>
+
+		<Message Text="|-- SSIS Packages prepared for Deployment --|"/>
+		<CallTarget Targets="Deploy"
+					Condition="!$(Debug)"/>
+	</Target>
+
+	<Target Name="Deploy">
+		<Message Text="|-- Beginning SSIS Package Deployment --|"/>
+		<Message Text="|---- Deploying %(Package.Path)\%(Package.Filename)"/>
+
+		<Exec WorkingDirectory="$(DTUtilDirectory)"
+			  Command='dtutil /QUIET /FILE "%(Package.FullPath)" /DestServer "$(SqlInstance)" /COPY SQL;"\$(PackageRootPath)\%(Package.Path)\%(Package.Filename)"'
+			  Condition="%(Package.Identity) != '' And !HasTrailingSlash(%(Package.Identity))"/>
+		<!-- Log the file name of the output file -->
+		<Message Text="|---- Completed Deploying %(Package.Path)\%(Package.Filename)"/>
+		<Message Text="|-- Completed SSIS Package Deployment --|"/>
+		<CallTarget Targets="Complete"/>
+	</Target>
+
+	<Target Name="Complete">
+		<Message Text="--------------------------------------------"/>
+		<Message Text="-- Completed Deployment to: $(Environment)"/>
+		<Message Text="--------------------------------------------"/>
+	</Target>
+
+	<Target Name="CancelDeployment">
+		<Message Text="--------------------------------------------"/>
+		<Message Text="-- Deployment Cancelled"/>
+		<Message Text="--------------------------------------------"/>
+	</Target>
+</Project>
